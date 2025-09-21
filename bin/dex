@@ -1,0 +1,1 @@
+/home/loop/.ai_builder/dex.sh

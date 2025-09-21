@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ~/.ai_builder/ai_build.sh
-# Local snippet assembly + URL ingestion + hashed builds + verbose Deepseek thinking + server auto-start
+# Local snippet assembly + URL ingestion + hashed builds + verbose Deepseek thinking + server auto-start + syntax highlighting
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -102,6 +102,36 @@ assemble_local_snippets() {
   log "Assembly complete -> $OUTPUT_FILE"
 }
 
+# --- syntax highlighting ---
+add_syntax_highlighting() {
+  local prism_css_url="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css"
+  local prism_js_url="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.js"
+
+  if ! grep -q "Prism" "$OUTPUT_FILE"; then
+    log "Adding Prism.js syntax highlighting to $OUTPUT_FILE"
+    sed -i '1i\<link href="'"$prism_css_url"'" rel="stylesheet" />\n<script src="'"$prism_js_url"'"></script>\n<script>Prism.highlightAll();</script>' "$OUTPUT_FILE"
+  fi
+
+  while IFS= read -r -d '' f; do
+    ext="${f##*.}"
+    lang=""
+    case "$ext" in
+      js) lang="javascript";;
+      html|htm) lang="html";;
+      css) lang="css";;
+      txt) lang="none";;
+    esac
+    if ! grep -q "<pre><code class=" "$f"; then
+      tmpf="$TMP_DIR/$(basename "$f")"
+      echo "<pre><code class=\"language-$lang\">" > "$tmpf"
+      cat "$f" >> "$tmpf"
+      echo "</code></pre>" >> "$tmpf"
+      mv -f "$tmpf" "$f"
+      log "Wrapped $f with syntax highlighting tags for $lang"
+    fi
+  done < <(find "$SNIPPET_DIR" -maxdepth 1 -type f \( -iname '*.html' -o -iname '*.htm' -o -iname '*.css' -o -iname '*.js' -o -iname '*.txt' \) -print0)
+}
+
 # --- run model with verbose thinking ---
 run_model() {
   local prompt="$1"
@@ -156,22 +186,20 @@ main() {
     fi
   done
 
-  # No arguments = auto-start server only
   if [[ ${#url_args[@]} -eq 0 && ${#prompt_parts[@]} -eq 0 ]]; then
     ensure_ollama_server
     log "No prompt given. Server ensured. Exiting."
     return 0
   fi
 
-  # Fetch URLs if any
   for u in "${url_args[@]}"; do
     fetch_url_snippet "$u" || log "Warning: fetch failed for $u"
   done
 
   assemble_local_snippets
+  add_syntax_highlighting
   save_hash_index
 
-  # Build prompt
   local PROMPT
   if [[ ${#prompt_parts[@]} -gt 0 ]]; then
     PROMPT="${prompt_parts[*]}"
