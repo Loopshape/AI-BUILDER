@@ -1,4 +1,12 @@
-# Termux ARM-kompatible Versionen
-sounddevice==0.5.2
-scipy
+vosk
+sounddevice
 numpy
+scipy
+pyttsx3
+requests
+python-dotenv
+prompt_toolkit
+flask
+aiohttp
+setuptools
+wheel

@@ -1,6 +1,6 @@
-# ~/.bashrc: executed by bash(1) for non-login shells
+# ~/.bashrc - Optimized for Termux + Proot + Local AI
 
-# If not running interactively, don't do anything
+# Only run for interactive shells
 case $- in
     *i*) ;;
       *) return;;
@@ -20,14 +20,6 @@ case "$TERM" in
     xterm-color|*-256color) color_prompt=yes;;
 esac
 
-if [ -n "$force_color_prompt" ]; then
-    if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
-        color_prompt=yes
-    else
-        color_prompt=
-    fi
-fi
-
 if [ "$color_prompt" = yes ]; then
     PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 else
@@ -35,7 +27,7 @@ else
 fi
 unset color_prompt force_color_prompt
 
-# Set terminal title for xterm
+# Terminal title for xterm
 case "$TERM" in
 xterm*|rxvt*)
     PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
@@ -49,17 +41,12 @@ if [ -x /usr/bin/dircolors ]; then
 fi
 
 # Source aliases if present
-if [ -f ~/.bash_aliases ]; then
-    . ~/.bash_aliases
-fi
+[ -f ~/.bash_aliases ] && . ~/.bash_aliases
 
 # Enable programmable completion
 if ! shopt -oq posix; then
-  if [ -f /usr/share/bash-completion/bash_completion ]; then
-      . /usr/share/bash-completion/bash_completion
-  elif [ -f /etc/bash_completion ]; then
-      . /etc/bash_completion
-  fi
+  [ -f /usr/share/bash-completion/bash_completion ] && . /usr/share/bash-completion/bash_completion
+  [ -f /etc/bash_completion ] && . /etc/bash_completion
 fi
 
 # Load NVM
@@ -70,23 +57,18 @@ export NVM_DIR="$HOME/.nvm"
 # Load Homebrew
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
-# AI Builder alias
+# AI Builder CLI
 alias ai="~/bin/ai"
 
-# Start Ollama server automatically (background, silent)
-nohup ollama serve >/dev/null 2>&1 &
+# Automatically activate Python venv if exists
+if [ -f "$HOME/env/bin/activate" ]; then
+    source "$HOME/env/bin/activate"
+fi
 
-# Disable auto server (will not start web server)
-export AUTO_SERVER="false"
-
-# Change server port
-export SERVER_PORT="8080"
-
-# Disable auto browser opening
-export AUTO_BROWSER="false"
-
-cd
-source ~/env/bin/activate
-
-unalias ai
+# Set noninteractive frontend for scripts
 export DEBIAN_FRONTEND=noninteractive
+
+# Optional: AI Server environment variables
+export AUTO_SERVER="false"
+export SERVER_PORT="8080"
+export AUTO_BROWSER="false"

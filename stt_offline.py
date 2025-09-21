@@ -1,47 +1,42 @@
 #!/usr/bin/env python3
-"""
-Offline STT via whisper.cpp (Termux/ARM)
-Compatible with Local AI Server
-"""
-
-import os
-import subprocess
 import sys
+import queue
+import sounddevice as sd
+import vosk
+import json
 
-WHISPER_CPP_BIN = os.path.expanduser("~/.repository/AI-BUILDER/whisper.cpp/build/main")
-AUDIO_FILE = "/tmp/temp.wav"
-DURATION = 5  # seconds
-SAMPLE_RATE = 16000
+# Vosk Model path
+MODEL_PATH = "/home/loop/.repository/AI-BUILDER/vosk-model-small-en-us-0.22"
 
-# Check whisper.cpp binary
-if not os.path.exists(WHISPER_CPP_BIN):
-    print("[ERROR] whisper.cpp binary not found! Build it first.")
+try:
+    model = vosk.Model(MODEL_PATH)
+except Exception as e:
+    print(f"ERROR: Could not load Vosk model: {e}", file=sys.stderr)
     sys.exit(1)
 
-# Record audio via sounddevice
-try:
-    import sounddevice as sd
-    import numpy as np
-    from scipy.io.wavfile import write
+q = queue.Queue()
 
-    print(f"[STT] Recording {DURATION}s...")
-    audio = sd.rec(int(DURATION * SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=1, dtype='int16')
-    sd.wait()
-    write(AUDIO_FILE, SAMPLE_RATE, audio)
-except Exception as e:
-    print("[ERROR] Recording failed, falling back to Termux mic:", e)
-    # Fallback via Termux API
-    try:
-        subprocess.run(["termux-microphone-record", "-o", AUDIO_FILE, "-d", str(DURATION*1000)], check=True)
-    except Exception as e2:
-        print("[ERROR] Termux mic fallback failed:", e2)
-        sys.exit(1)
+# Audio callback
+def callback(indata, frames, time, status):
+    if status:
+        print(status, file=sys.stderr)
+    q.put(bytes(indata))
 
-# Run whisper.cpp
+# Record & recognize
 try:
-    result = subprocess.run([WHISPER_CPP_BIN, "-f", AUDIO_FILE, "-m", "ggml-base.en.bin"],
-                            capture_output=True, text=True)
-    text = result.stdout.strip().split("\n")[-1]  # last line as transcription
-    print(text)
+    with sd.RawInputStream(samplerate=16000, blocksize = 8000, dtype='int16',
+                           channels=1, callback=callback):
+        rec = vosk.KaldiRecognizer(model, 16000)
+        while True:
+            data = q.get()
+            if rec.AcceptWaveform(data):
+                result = rec.Result()
+                text = json.loads(result).get("text", "")
+                if text:
+                    print(text)
+                    sys.stdout.flush()
+                    break
+except KeyboardInterrupt:
+    print("\n[INFO] Stopped by user")
 except Exception as e:
-    print("[ERROR] whisper.cpp failed:", e)
+    print(f"ERROR: {e}", file=sys.stderr)

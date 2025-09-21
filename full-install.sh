@@ -1,110 +1,92 @@
-#!/bin/bash
-# ===============================================================
-# Local AI Full Installer for Termux / Proot ARM
-# Sets up Python env, Node, Whisper.cpp, dependencies
-# ===============================================================
-
+#!/usr/bin/env bash
 set -e
 
-REPO_DIR="$HOME/.repository/AI-BUILDER"
+USER_NAME="${USER:-loop}"
+AI_PASS="6677788"
+MODEL="2244-1"
+REPO_DIR="$HOME/.ai_builder"
 ENV_DIR="$HOME/env"
-PYTHON_VERSION=3.12
+PYTHON_VERSION="python3"
+SERVER_JS="$REPO_DIR/server.js"
+LOG_FILE="$REPO_DIR/chat.log"
 
-echo "[INSTALLER] Starting Local AI Termux Full Installer..."
+echo "[INSTALLER] Starting Termux Local AI setup for user: $USER_NAME"
 
-# -----------------------------
-# Create directories
-# -----------------------------
-mkdir -p "$REPO_DIR/public"
-cd "$REPO_DIR"
+mkdir -p "$REPO_DIR"
 
-# -----------------------------
-# Python Virtualenv
-# -----------------------------
-echo "[INSTALLER] Installing Python packages..."
-pkg install python clang make cmake git -y
+# === Dependency Check ===
+echo "[INSTALLER] Checking dependencies..."
+deps=(gawk vim net-tools xxd curl wget git node npm nvm espeak unzip python3-pip)
+need_install=()
 
-# Ensure pip, venv, setuptools
-python3 -m ensurepip --upgrade
-python3 -m pip install --upgrade pip setuptools wheel
+for dep in "${deps[@]}"; do
+    if ! command -v $dep >/dev/null 2>&1; then
+        need_install+=("$dep")
+    fi
+done
 
-# Create virtual environment if not exists
+if [ ${#need_install[@]} -gt 0 ]; then
+    echo "[ACTION] Installing missing packages: ${need_install[*]}"
+    if command -v pkg >/dev/null 2>&1; then
+        pkg install -y "${need_install[@]}"
+    else
+        apt update
+        apt install -y "${need_install[@]}"
+    fi
+fi
+
+# === Python Virtual Environment Setup ===
 if [ ! -d "$ENV_DIR" ]; then
-    python3 -m venv "$ENV_DIR"
+    echo "[INSTALLER] Setting up Python virtual environment at $ENV_DIR"
+    $PYTHON_VERSION -m venv "$ENV_DIR"
 fi
+
 source "$ENV_DIR/bin/activate"
+pip install --upgrade pip setuptools wheel
 
-# Install compatible Python packages
-cat > requirements.txt <<EOL
-sounddevice==0.5.2
-scipy
-numpy
-EOL
-
-pip install -r requirements.txt
-
-# -----------------------------
-# Node/NPM
-# -----------------------------
-echo "[INSTALLER] Installing Node.js..."
-pkg install nodejs-lts -y
-npm init -y
-npm install express dotenv
-
-# -----------------------------
-# Whisper.cpp Build
-# -----------------------------
-echo "[INSTALLER] Installing whisper.cpp..."
-if [ ! -d "$REPO_DIR/whisper.cpp" ]; then
-    git clone https://github.com/ggerganov/whisper.cpp.git
+# === Install Vosk offline STT ===
+if ! pip show vosk >/dev/null 2>&1; then
+    echo "[INSTALLER] Installing Vosk"
+    pip install git+https://github.com/alphacep/vosk-api.git#subdirectory=python
 fi
 
-cd whisper.cpp
-mkdir -p build
-cd build
-cmake ..
-make -j$(nproc)
-
-# Download English model
-mkdir -p models
-cd models
-if [ ! -f "ggml-base.en.bin" ]; then
-    wget https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+# === Install requirements.txt if exists ===
+if [ -f "$REPO_DIR/requirements.txt" ]; then
+    echo "[INSTALLER] Installing Python requirements from requirements.txt"
+    pip install -r "$REPO_DIR/requirements.txt"
 fi
-cd "$REPO_DIR"
 
-# -----------------------------
-# .env
-# -----------------------------
-cat > .env <<EOL
-PORT=3000
-OLLAMA_USER=loop
-OLLAMA_PASSWORD=6677788
-OLLAMA_MODEL=2244-1
-REPO_DIR=$REPO_DIR
-EOL
+# === Node / NVM Setup ===
+if [ ! -d "$HOME/.nvm" ]; then
+    echo "[INSTALLER] Installing NVM"
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.6/install.sh | bash
+fi
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm install --lts
+nvm use --lts
 
-# -----------------------------
-# server.js
-# -----------------------------
-cat > server.js <<'EOL'
+# === JS Packages ===
+npm install -g react vue grunt gulp express lodash backbone
+
+# === Server.js Environment ===
+touch "$LOG_FILE"
+
+if [ ! -f "$SERVER_JS" ]; then
+    echo "[INSTALLER] Creating default server.js"
+    cat > "$SERVER_JS" <<EOL
 #!/usr/bin/env node
 const express = require('express');
-const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-require('dotenv').config();
-
 const app = express();
 const PORT = process.env.PORT || 3000;
-const AI_USER = process.env.OLLAMA_USER || "loop";
-const AI_PASS = process.env.OLLAMA_PASSWORD || "6677788";
-const MODEL = process.env.OLLAMA_MODEL || "2244-1";
-const REPO_DIR = process.env.REPO_DIR || path.join(__dirname, '.ai_builder');
-const LOG_FILE = path.join(REPO_DIR, 'chat.log');
+const AI_USER = process.env.OLLAMA_USER || "$USER_NAME";
+const AI_PASS = process.env.OLLAMA_PASSWORD || "$AI_PASS";
+const MODEL = process.env.OLLAMA_MODEL || "$MODEL";
+const LOG_FILE = "$LOG_FILE";
 
-if (!fs.existsSync(REPO_DIR)) fs.mkdirSync(REPO_DIR, { recursive: true });
-fs.writeFileSync(LOG_FILE, fs.existsSync(LOG_FILE) ? fs.readFileSync(LOG_FILE) : '', { flag: 'a' });
+if (!fs.existsSync(LOG_FILE)) fs.writeFileSync(LOG_FILE, '', { flag: 'a' });
 
 app.use((req, res, next) => {
     const auth = { login: AI_USER, password: AI_PASS };
@@ -115,7 +97,7 @@ app.use((req, res, next) => {
     res.status(401).send('Authentication required.');
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname + '/public'));
 
 app.get('/api/log', (req, res) => {
     if (!fs.existsSync(LOG_FILE)) return res.send("No chat log found.");
@@ -128,85 +110,48 @@ function speakOffline(text) {
 
 app.get('/api/stream', (req, res) => {
     const prompt = req.query.prompt;
-    if (!prompt) return res.status(400).json({ error: "Missing prompt" });
+    if (!prompt) return res.status(400).json({ error: "Missing prompt parameter" });
     const timestamp = new Date().toISOString();
-    fs.appendFileSync(LOG_FILE, `[${timestamp}] USER: ${prompt}\n`);
-    res.writeHead(200, { 'Content-Type':'text/event-stream', 'Cache-Control':'no-cache', 'Connection':'keep-alive' });
+    fs.appendFileSync(LOG_FILE, \`[\${timestamp}] USER: \${prompt}\n\`);
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
 
     const ai = spawn('ollama', ['run', MODEL, prompt, '--stream', '--quiet']);
     let aiText = '';
-    ai.stdout.on('data', chunk => {
+    ai.stdout.on('data', (chunk) => {
         const text = chunk.toString();
         aiText += text;
-        res.write(`data: ${text}\n\n`);
+        res.write(\`data: \${text}\n\n\`);
     });
     ai.on('close', () => {
-        fs.appendFileSync(LOG_FILE, `[${timestamp}] AI: ${aiText.trim()}\n\n`);
+        fs.appendFileSync(LOG_FILE, \`[\${timestamp}] AI: \${aiText.trim()}\n\n\`);
         speakOffline(aiText);
-        res.write(`event: end\ndata: [DONE]\n\n`);
+        res.write('event: end\ndata: [DONE]\n\n');
         res.end();
     });
 });
 
 app.get('/api/listen', (req, res) => {
-    const stt = spawn('python', [path.join(REPO_DIR, 'stt_offline.py')]);
-    let text = '';
-    stt.stdout.on('data', data => text += data.toString());
-    stt.on('close', () => res.json({ text: text.trim() }));
+    const stt = spawn('python3', ["$REPO_DIR/stt_offline.py"]);
+    stt.stdout.on('data', (data) => {
+        const text = data.toString().trim();
+        if (text) res.json({ text });
+    });
 });
 
 app.listen(PORT, () => {
-    console.log(`[SERVER] Local AI running at http://localhost:${PORT}`);
-    console.log(`[SERVER] Model: ${MODEL}`);
-    console.log(`[SERVER] Chat log: ${LOG_FILE}`);
+    console.log(\`[SERVER] Local AI Server running at http://localhost:\${PORT}\`);
+    console.log(\`[SERVER] Model: \${MODEL}\`);
+    console.log(\`[SERVER] Chat log: \${LOG_FILE}\`);
 });
 EOL
+    chmod +x "$SERVER_JS"
+fi
 
-# -----------------------------
-# stt_offline.py
-# -----------------------------
-cat > stt_offline.py <<'EOL'
-#!/usr/bin/env python3
-import os
-import subprocess
-import sys
+# === Start Ollama server in background ===
+if ! pgrep -f "ollama serve" >/dev/null; then
+    echo "[INSTALLER] Starting Ollama server in background..."
+    nohup ollama serve >/dev/null 2>&1 &
+fi
 
-WHISPER_CPP_BIN = os.path.expanduser("~/.repository/AI-BUILDER/whisper.cpp/build/main")
-AUDIO_FILE = "/tmp/temp.wav"
-DURATION = 5
-SAMPLE_RATE = 16000
-
-if not os.path.exists(WHISPER_CPP_BIN):
-    print("[ERROR] whisper.cpp binary not found!")
-    sys.exit(1)
-
-try:
-    import sounddevice as sd
-    import numpy as np
-    from scipy.io.wavfile import write
-
-    print(f"[STT] Recording {DURATION}s...")
-    audio = sd.rec(int(DURATION * SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=1, dtype='int16')
-    sd.wait()
-    write(AUDIO_FILE, SAMPLE_RATE, audio)
-except Exception as e:
-    print("[ERROR] Recording failed, falling back to Termux mic:", e)
-    try:
-        subprocess.run(["termux-microphone-record", "-o", AUDIO_FILE, "-d", str(DURATION*1000)], check=True)
-    except Exception as e2:
-        print("[ERROR] Termux mic fallback failed:", e2)
-        sys.exit(1)
-
-try:
-    result = subprocess.run([WHISPER_CPP_BIN, "-f", AUDIO_FILE, "-m", "ggml-base.en.bin"],
-                            capture_output=True, text=True)
-    text = result.stdout.strip().split("\n")[-1]
-    print(text)
-except Exception as e:
-    print("[ERROR] whisper.cpp failed:", e)
-EOL
-
-chmod +x server.js stt_offline.py
-
-echo "[INSTALLER] Full install completed!"
-echo "Run 'source $ENV_DIR/bin/activate' and 'node server.js' to start Local AI."
+echo "[INSTALLER] Setup complete!"
+echo "[INFO] Run server with: node $SERVER_JS"

@@ -1,37 +1,51 @@
 #!/usr/bin/env bash
-set -e
-echo "[STARTER] Launching Local AI + Crypto + VNC GUI..."
+# start.sh - Local AI Starter for Termux / Proot
 
-# --- Load .env ---
-export $(grep -v '^#' ~/.ai_builder/.env | xargs)
+# Set repository and venv paths
+REPO_DIR="$HOME/.repository/AI-BUILDER"
+VENV_DIR="$HOME/env"
 
-# --- Activate Python venv ---
-source ~/env/bin/activate
+# Activate Python virtual environment
+if [ -f "$VENV_DIR/bin/activate" ]; then
+    echo "[START] Activating Python venv..."
+    source "$VENV_DIR/bin/activate"
+else
+    echo "[WARN] Python virtual environment not found at $VENV_DIR"
+    exit 1
+fi
 
-# --- Start Node.js server in background ---
-NODE_LOG="$HOME/.ai_builder/server.log"
-echo "[STARTER] Starting Node.js server..."
-nohup node ~/.ai_builder/server.js > "$NODE_LOG" 2>&1 &
+# Ensure required Python packages are installed
+REQ_FILE="$REPO_DIR/requirements.txt"
+if [ -f "$REQ_FILE" ]; then
+    echo "[START] Installing Python dependencies..."
+    pip install --upgrade pip
+    pip install -r "$REQ_FILE"
+fi
 
-# --- Start TightVNC server ---
-mkdir -p $HOME/.vnc
-echo $SERVER_PASS | vncpasswd -f > $HOME/.vnc/passwd
-chmod 600 $HOME/.vnc/passwd
+# Set Node/NVM environment
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 
-cat > $HOME/.vnc/xstartup <<'EOF'
-#!/bin/sh
-xrdb $HOME/.Xresources
-startxfce4 &
-EOF
-chmod +x $HOME/.vnc/xstartup
+# Optional: Load Homebrew (if installed)
+if [ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]; then
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+fi
 
-echo "[STARTER] Starting TightVNC server on :1..."
-vncserver :1 -geometry 1280x720 -depth 24
+# Start Local AI server
+SERVER_LOG="$REPO_DIR/server.log"
+echo "[START] Starting Local AI Server..."
+nohup node "$REPO_DIR/server.js" >"$SERVER_LOG" 2>&1 &
+SERVER_PID=$!
+echo "[START] Server running in background (PID $SERVER_PID)"
+echo "[START] Logs: $SERVER_LOG"
 
-# --- Optional: Encrypted backup ---
-bash ~/.ai_builder/backup.sh
+# Optional: keep shell open for CLI usage
+echo "[INFO] You can now run '~/bin/ai' to interact with Local AI CLI."
+echo "[INFO] Press Ctrl+C to exit this shell; server will continue running."
 
-echo "[STARTER] All services started!"
-echo "[INFO] Node server: http://localhost:3000 (logs: $NODE_LOG)"
-echo "[INFO] VNC server: localhost:5901 (password: $SERVER_PASS)"
-echo "[INFO] Stop VNC: vncserver -kill :1"
+# Wait a bit to let server start
+sleep 2
+
+# Tail the log (optional, comment out if not needed)
+tail -f "$SERVER_LOG"
