@@ -1,92 +1,52 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Local AI Chat</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Local AI Prompt</title>
 <style>
-  /* Dark Monokai + gradient */
-  body {
-    margin: 0;
-    font-family: monospace;
-    background: linear-gradient(135deg, #ff5555, #6688ff);
-    color: #f8f8f2;
-  }
-  #chat {
-    max-width: 600px;
-    margin: 40px auto;
-    padding: 20px;
-    background: #272822;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
-  }
-  .message {
-    margin: 5px 0;
-    padding: 5px 10px;
-    border-radius: 5px;
-  }
-  .user { background: #49483e; text-align: right; }
-  .ai   { background: #75715e; text-align: left; }
-  input, button {
-    padding: 10px;
-    border: none;
-    border-radius: 5px;
-    margin-top: 10px;
-    font-family: monospace;
-  }
-  input { width: 80%; }
-  button { width: 18%; background: #66d9ef; color: #272822; cursor: pointer; }
+  body{background:#1e1e1e;color:#cfcfcf;font-family:monospace;padding:18px}
+  #out{white-space:pre-wrap;height:60vh;overflow:auto;border:1px solid #333;padding:10px;background:#111}
+  #prompt{width:100%;padding:10px;background:#222;border:1px solid #333;color:#fff}
+  button{margin-top:8px;padding:8px}
 </style>
 </head>
 <body>
-<div id="chat"></div>
-<input id="prompt" placeholder="Ask something..." />
-<button id="send">Send</button>
+<h2>Local AI — prompt-only</h2>
+<input id="prompt" placeholder="Type or use voice..." autofocus />
+<button id="voice">🎤 Voice</button>
+<div id="out"></div>
 
 <script>
-const chat = document.getElementById('chat');
-const input = document.getElementById('prompt');
-const sendBtn = document.getElementById('send');
+const out=document.getElementById('out');
+const p=document.getElementById('prompt');
+const v=document.getElementById('voice');
 
-// Basic Auth credentials (match .env)
-const username = prompt("Enter username:");
-const password = prompt("Enter password:");
-const authHeader = "Basic " + btoa(username + ":" + password);
-
-function appendMessage(text, cls) {
-    const div = document.createElement('div');
-    div.className = 'message ' + cls;
-    div.textContent = text;
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
+async function submitPrompt(prompt){
+  out.textContent += `> ${prompt}\n`;
+  p.value='';
+  const es = new EventSource(`/api/stream?prompt=${encodeURIComponent(prompt)}`);
+  let buffer='';
+  es.onmessage = e=>{
+    if(e.data==='[DONE]'){ es.close(); out.textContent += '\n'; return; }
+    buffer += e.data;
+    out.textContent = out.textContent.split('\n').slice(0,-1).join('\n') + '\n' + buffer;
+    out.scrollTop = out.scrollHeight;
+  };
 }
 
-sendBtn.addEventListener('click', () => {
-    const promptText = input.value.trim();
-    if (!promptText) return;
-    appendMessage(promptText, 'user');
-    input.value = '';
-
-    // SSE for streaming
-    const evtSource = new EventSource(`/api/stream?prompt=${encodeURIComponent(promptText)}`, {
-        headers: { "Authorization": authHeader } // Some browsers ignore headers; for Termux WebView, may need fetch fallback
-    });
-
-    let aiText = '';
-    evtSource.onmessage = (event) => {
-        if (event.data === "[DONE]") {
-            appendMessage(aiText, 'ai');
-            evtSource.close();
-            return;
-        }
-        aiText += event.data;
-    };
-
-    evtSource.onerror = (err) => {
-        console.error("Stream error:", err);
-        evtSource.close();
-    };
+v.addEventListener('click', async ()=>{
+  v.disabled=true; v.textContent='🎙 Listening...';
+  try{
+    const resp=await fetch('/api/listen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({duration:5})});
+    const j=await resp.json();
+    if(j.text){ p.value=j.text; submitPrompt(j.text); }
+    else alert('No speech or STT error.');
+  }catch(e){ alert('Voice failed'); console.error(e); }
+  v.disabled=false; v.textContent='🎤 Voice';
 });
+
+p.addEventListener('keyup',e=>{ if(e.key==='Enter'){ submitPrompt(p.value.trim()); } });
 </script>
 </body>
 </html>
