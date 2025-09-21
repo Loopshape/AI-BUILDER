@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local AI Chat</title>
+<style>
+  /* Dark Monokai + gradient */
+  body {
+    margin: 0;
+    font-family: monospace;
+    background: linear-gradient(135deg, #ff5555, #6688ff);
+    color: #f8f8f2;
+  }
+  #chat {
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #272822;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+  .message {
+    margin: 5px 0;
+    padding: 5px 10px;
+    border-radius: 5px;
+  }
+  .user { background: #49483e; text-align: right; }
+  .ai   { background: #75715e; text-align: left; }
+  input, button {
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    margin-top: 10px;
+    font-family: monospace;
+  }
+  input { width: 80%; }
+  button { width: 18%; background: #66d9ef; color: #272822; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="chat"></div>
+<input id="prompt" placeholder="Ask something..." />
+<button id="send">Send</button>
+
+<script>
+const chat = document.getElementById('chat');
+const input = document.getElementById('prompt');
+const sendBtn = document.getElementById('send');
+
+// Basic Auth credentials (match .env)
+const username = prompt("Enter username:");
+const password = prompt("Enter password:");
+const authHeader = "Basic " + btoa(username + ":" + password);
+
+function appendMessage(text, cls) {
+    const div = document.createElement('div');
+    div.className = 'message ' + cls;
+    div.textContent = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+sendBtn.addEventListener('click', () => {
+    const promptText = input.value.trim();
+    if (!promptText) return;
+    appendMessage(promptText, 'user');
+    input.value = '';
+
+    // SSE for streaming
+    const evtSource = new EventSource(`/api/stream?prompt=${encodeURIComponent(promptText)}`, {
+        headers: { "Authorization": authHeader } // Some browsers ignore headers; for Termux WebView, may need fetch fallback
+    });
+
+    let aiText = '';
+    evtSource.onmessage = (event) => {
+        if (event.data === "[DONE]") {
+            appendMessage(aiText, 'ai');
+            evtSource.close();
+            return;
+        }
+        aiText += event.data;
+    };
+
+    evtSource.onerror = (err) => {
+        console.error("Stream error:", err);
+        evtSource.close();
+    };
+});
+</script>
+</body>
+</html>

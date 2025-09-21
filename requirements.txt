@@ -1,0 +1,4 @@
+# Termux ARM-kompatible Versionen
+sounddevice==0.5.2
+scipy
+numpy

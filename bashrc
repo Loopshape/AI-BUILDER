@@ -84,3 +84,9 @@ export SERVER_PORT="8080"
 
 # Disable auto browser opening
 export AUTO_BROWSER="false"
+
+cd
+source ~/env/bin/activate
+
+unalias ai
+export DEBIAN_FRONTEND=noninteractive

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local AI App</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>LOCAL <span>RGbYW</span> AI</header>
+<div style="padding:20px;">
+  <h2>Chat with Local AI</h2>
+  <textarea id="prompt" placeholder="Type something..." style="width:100%; height:100px;"></textarea><br>
+  <button onclick="sendPrompt()">Send</button>
+  <pre id="reply" style="margin-top:20px; white-space:pre-wrap;"></pre>
+</div>
+<script>
+async function sendPrompt() {
+  const prompt = document.getElementById('prompt').value;
+  const res = await fetch('/api/ollama', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt })
+  });
+  const data = await res.json();
+  document.getElementById('reply').innerText = data.reply;
+}
+</script>
+</body>
+</html>
