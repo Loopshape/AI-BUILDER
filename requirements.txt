@@ -1,12 +1,16 @@
-vosk
-sounddevice
-numpy
-scipy
-pyttsx3
-requests
-python-dotenv
-prompt_toolkit
-flask
-aiohttp
-setuptools
-wheel
+
+# Python3-only requirements for Local AI
+
+# Environment management
+setuptools>=80.0
+wheel>=0.45.1
+
+# Web server / REST API
+Flask>=2.3.2
+python-dotenv>=1.0.0
+
+# Optional utilities
+requests>=2.32.0
+
+# If you plan on using async / websockets in the future
+websockets>=11.0.3

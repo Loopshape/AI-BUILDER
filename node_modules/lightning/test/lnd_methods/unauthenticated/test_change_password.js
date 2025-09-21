@@ -1,0 +1,55 @@
+const {rejects} = require('node:assert').strict;
+const test = require('node:test');
+
+const {changePassword} = require('./../../../lnd_methods');
+
+
+const tests = [
+  {
+    args: {},
+    description: 'The current password is required',
+    error: [400, 'ExpectedCurrentPasswordToChangePassword'],
+  },
+  {
+    args: {current_password: 'password'},
+    description: 'LND is required',
+    error: [400, 'ExpectedUnauthenticatedLndToChangePassword'],
+  },
+  {
+    args: {
+      current_password: 'password',
+      lnd: {unlocker: {changePassword: ({}, cbk) => cbk()}},
+    },
+    description: 'LND is required',
+    error: [400, 'ExpectedNewPasswordForChangePasswordRequest'],
+  },
+  {
+    args: {
+      current_password: 'password',
+      lnd: {unlocker: {changePassword: ({}, cbk) => cbk('err')}},
+      new_password: 'new_password',
+    },
+    description: 'Errors are passed back',
+    error: [503, 'FailedToChangeLndPassword', {err: 'err'}],
+  },
+  {
+    args: {
+      current_password: 'password',
+      lnd: {unlocker: {changePassword: ({}, cbk) => cbk(null, {})}},
+      new_password: 'new_password',
+    },
+    description: 'Password is changed',
+  },
+];
+
+tests.forEach(({args, description, error, expected}) => {
+  return test(description, async () => {
+    if (!!error) {
+      await rejects(changePassword(args), error, 'Got expected error');
+    } else {
+      await changePassword(args);
+    }
+
+    return;
+  });
+});

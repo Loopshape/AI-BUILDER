@@ -1,42 +1,54 @@
 #!/usr/bin/env python3
+# stt_offline.py
+# Offline STT using Vosk 0.15 in Termux/Proot (Python 3.11)
+
 import sys
+import os
+import json
 import queue
 import sounddevice as sd
-import vosk
-import json
+from vosk import Model, KaldiRecognizer
 
-# Vosk Model path
-MODEL_PATH = "/home/loop/.repository/AI-BUILDER/vosk-model-small-en-us-0.22"
+# Pfad zu deinem Vosk-Modell
+MODEL_PATH = "/home/loop/.repository/AI-BUILDER/vosk-model-small-en-us-0.15"
 
-try:
-    model = vosk.Model(MODEL_PATH)
-except Exception as e:
-    print(f"ERROR: Could not load Vosk model: {e}", file=sys.stderr)
+if not os.path.exists(MODEL_PATH):
+    print(f"Model not found at {MODEL_PATH}", file=sys.stderr)
     sys.exit(1)
+
+# Lade Modell
+model = Model(MODEL_PATH)
+
+# Sample rate (gängig für Termux)
+RATE = 16000
+CHANNELS = 1
 
 q = queue.Queue()
 
-# Audio callback
 def callback(indata, frames, time, status):
     if status:
         print(status, file=sys.stderr)
     q.put(bytes(indata))
 
-# Record & recognize
+# Erstelle Recognizer
+rec = KaldiRecognizer(model, RATE)
+
 try:
-    with sd.RawInputStream(samplerate=16000, blocksize = 8000, dtype='int16',
-                           channels=1, callback=callback):
-        rec = vosk.KaldiRecognizer(model, 16000)
+    with sd.InputStream(samplerate=RATE, channels=CHANNELS, dtype='int16', callback=callback):
+        print("Listening... Speak now!")
+        sys.stdout.flush()
         while True:
             data = q.get()
             if rec.AcceptWaveform(data):
-                result = rec.Result()
-                text = json.loads(result).get("text", "")
-                if text:
-                    print(text)
+                res = json.loads(rec.Result())
+                if res.get("text"):
+                    print(res["text"])
                     sys.stdout.flush()
-                    break
+            else:
+                # Zwischenergebnisse
+                partial = json.loads(rec.PartialResult())
+                # optional: print(partial["partial"])
 except KeyboardInterrupt:
-    print("\n[INFO] Stopped by user")
+    print("\nStopped by user")
 except Exception as e:
-    print(f"ERROR: {e}", file=sys.stderr)
+    print(f"Error: {e}", file=sys.stderr)

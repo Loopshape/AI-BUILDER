@@ -1,0 +1,90 @@
+{
+  "addressFormats": {
+    "np2wpkh": "NESTED_PUBKEY_HASH",
+    "p2tr": "TAPROOT_PUBKEY",
+    "p2wpkh": "WITNESS_PUBKEY_HASH"
+  },
+  "adjustedChannelTypes": {
+    "LEGACY": "STATIC_REMOTE_KEY",
+    "STATIC_REMOTE_KEY": "ANCHORS",
+    "UNKNOWN_COMMITMENT_TYPE": "LEGACY"
+  },
+  "attemptStates": {
+    "confirmed": "SUCCEEDED",
+    "failed": "FAILED",
+    "pending": "IN_FLIGHT"
+  },
+  "channelTypes": {
+    "ANCHORS": "anchor",
+    "LEGACY": "original",
+    "SCRIPT_ENFORCED_LEASE": "anchor_with_lease_constraint",
+    "SIMPLE_TAPROOT": "simplified_taproot",
+    "STATIC_REMOTE_KEY": "original_with_static_to_remote"
+  },
+  "commitmentTypes": {
+    "anchor": "ANCHORS",
+    "simplified_taproot": "SIMPLE_TAPROOT",
+    "static_remote_key": "STATIC_REMOTE_KEY",
+    "variable_remote_key": "LEGACY"
+  },
+  "defaultChannelType": "UNKNOWN_COMMITMENT_TYPE",
+  "failureReason": {
+    "canceled": "FAILURE_REASON_CANCELED",
+    "invalid_payment": "FAILURE_REASON_INCORRECT_PAYMENT_DETAILS",
+    "insufficient_balance": "FAILURE_REASON_INSUFFICIENT_BALANCE",
+    "pathfinding_timeout_failed": "FAILURE_REASON_TIMEOUT",
+    "pathfinding_routes_failed": "FAILURE_REASON_NO_ROUTE"
+  },
+  "htlcStates": {
+    "accepted": "ACCEPTED",
+    "canceled": "CANCELED",
+    "received": "SETTLED"
+  },
+  "htlcTypes": {
+    "forward": "FORWARD",
+    "receive": "RECEIVE",
+    "send": "SEND"
+  },
+  "oldChannelVersions": [
+    "0.10.0-beta",
+    "0.10.1-beta",
+    "0.10.2-beta",
+    "0.10.3-beta",
+    "0.10.4-beta",
+    "0.11.0-beta",
+    "0.11.1-beta",
+    "0.12.0-beta",
+    "0.12.1-beta",
+    "0.13.0-beta",
+    "0.13.1-beta",
+    "0.13.2-beta",
+    "0.13.3-beta"
+  ],
+  "paymentStates": {
+    "insufficient_balance": "FAILED_INSUFFICIENT_BALANCE",
+    "invalid_payment": "FAILED_INCORRECT_PAYMENT_DETAILS",
+    "pathfinding_routes_failed": "FAILED_NO_ROUTE",
+    "pathfinding_timeout_failed": "FAILED_TIMEOUT"
+  },
+  "policyUpdateFailures": {
+    "invalid_policy": "UPDATE_FAILURE_INVALID_PARAMETER",
+    "pending_channel": "UPDATE_FAILURE_PENDING",
+    "unknown_channel": "UPDATE_FAILURE_NOT_FOUND"
+  },
+  "resolutionOutcomes": {
+    "confirmed": "CLAIMED",
+    "pending": "FIRST_STAGE",
+    "refunded": "TIMEOUT"
+  },
+  "resolutionTypes": {
+    "balance": "COMMIT",
+    "incoming_payment": "INCOMING_HTLC",
+    "outgoing_payment": "OUTGOING_HTLC",
+    "anchor": "ANCHOR"
+  },
+  "syncTypes": {
+    "active": "ACTIVE_SYNC",
+    "passive": "PASSIVE_SYNC",
+    "pinned": "PINNED_SYNC"
+  }
+}
