@@ -72,3 +72,5 @@ export DEBIAN_FRONTEND=noninteractive
 export AUTO_SERVER="false"
 export SERVER_PORT="8080"
 export AUTO_BROWSER="false"
+source /home/loop/env/bin/activate
+nohup ollama serve >/dev/null 2>&1 &
